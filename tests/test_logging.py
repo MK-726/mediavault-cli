@@ -2,20 +2,25 @@
 
 import logging
 
-from mediavault.logging_setup import LOGGER_NAME, configure_logging
+from mediavault.logging_setup import (
+    LOGGER_NAME,
+    _MediaVaultConsoleHandler,
+    _MediaVaultFileHandler,
+    configure_logging,
+)
 
 
 def test_configure_logging_is_idempotent(tmp_path):
     logger = logging.getLogger(LOGGER_NAME)
     logger.handlers.clear()
-    logger._mediavault_configured = False  # reset between tests
 
     configure_logging(level="INFO", log_dir=tmp_path)
     configure_logging(level="INFO", log_dir=tmp_path)
 
-    console_handlers = [
-        h for h in logger.handlers if not hasattr(h, "baseFilename")]
-    file_handlers = [h for h in logger.handlers if hasattr(h, "baseFilename")]
+    console = [h for h in logger.handlers if isinstance(
+        h, _MediaVaultConsoleHandler)]
+    files = [h for h in logger.handlers if isinstance(
+        h, _MediaVaultFileHandler)]
 
-    assert len(console_handlers) == 1
-    assert len(file_handlers) == 1
+    assert len(console) == 1
+    assert len(files) == 1
