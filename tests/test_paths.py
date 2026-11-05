@@ -24,3 +24,12 @@ def test_validate_path_with_file(tmp_path):
 
     with pytest.raises(ValueError):
         validate_path(path)
+
+
+def test_validate_path_symlink_to_file_rejected(tmp_path):
+    target = tmp_path / "file.txt"
+    target.touch()
+    link = tmp_path / "link"
+    link.symlink_to(target)
+    with pytest.raises(ValueError):
+        validate_path(link)
