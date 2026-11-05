@@ -1,31 +1,10 @@
-"""Tests for main.py."""
+""""""
 
-import pytest
-
-from main import validate_path, discover_movie_files, discover_shows
-from main import discover_episode_files
-
-
-def test_validate_path_with_existing_directory(tmp_path):
-    """An existing directory passes validation."""
-    assert validate_path(tmp_path) is None
-
-
-def test_validate_path_with_nonexistent_path(tmp_path):
-    """A nonexistent path raises ValueError."""
-    path = tmp_path / "does_not_exist"
-
-    with pytest.raises(ValueError):
-        validate_path(path)
-
-
-def test_validate_path_with_file(tmp_path):
-    """A file raises ValueError when a directory is required."""
-    path = tmp_path / "file.txt"
-    path.touch()
-
-    with pytest.raises(ValueError):
-        validate_path(path)
+from mediavault.discovery import (
+    discover_movie_files,
+    discover_shows,
+    discover_episode_files
+)
 
 
 def test_discover_movie_files(tmp_path):
