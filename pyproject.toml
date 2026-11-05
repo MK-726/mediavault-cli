@@ -1,0 +1,10 @@
+[project]
+name = "mediavault-cli"
+requires-python = ">=3.14"
+dependencies = ["typer", "rich", "questionary"]
+
+[project.scripts]
+mediavault-cli = "mediavault.cli.main:app"
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov"]
