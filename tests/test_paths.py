@@ -27,6 +27,7 @@ def test_validate_path_with_file(tmp_path):
 
 
 def test_validate_path_symlink_to_file_rejected(tmp_path):
+    """"""
     target = tmp_path / "file.txt"
     target.touch()
     link = tmp_path / "link"

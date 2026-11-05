@@ -1,5 +1,6 @@
 """"""
 
+
 from mediavault.discovery import (
     discover_movie_files,
     discover_shows,
@@ -77,6 +78,43 @@ def test_discover_movie_files_deeply_nested(tmp_path):
     movie.touch()
 
     assert discover_movie_files(tmp_path) == [movie]
+
+
+def test_discover_movie_files_does_not_follow_symlinks(tmp_path):
+    """"""
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    (real_dir / "movie.mkv").touch()
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "link").symlink_to(real_dir, target_is_directory=True)
+    assert discover_movie_files(root) == []
+
+
+def test_discover_movie_files_ignores_hidden(tmp_path):
+    (tmp_path / "movie.mkv").touch()
+    (tmp_path / ".hidden.mkv").touch()
+    (tmp_path / ".hidden").mkdir()
+    (tmp_path / ".hidden" / "other.mkv").touch()
+    assert discover_movie_files(tmp_path) == [tmp_path / "movie.mkv"]
+
+
+def test_discover_movie_files_skips_junk_dirs(tmp_path):
+    (tmp_path / "movie.mkv").touch()
+    (tmp_path / "@eaDir").mkdir()
+    (tmp_path / "@eaDir" / "junk.mkv").touch()
+    assert discover_movie_files(tmp_path) == [tmp_path / "movie.mkv"]
+
+
+def test_discover_movie_files_unreadable_subdir_does_not_abort(tmp_path):
+    (tmp_path / "good.mkv").touch()
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    bad.chmod(0o000)
+    try:
+        assert discover_movie_files(tmp_path) == [tmp_path / "good.mkv"]
+    finally:
+        bad.chmod(0o755)  # so pytest can clean up
 
 
 def test_discover_shows(tmp_path):
