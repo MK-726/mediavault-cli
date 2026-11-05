@@ -15,8 +15,15 @@ LOGGER_NAME = "mediavault"
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(message)s"
 
 
+class _MediaVaultConsoleHandler(logging.StreamHandler):
+    """Handler subclass used as an identity marker (no custom attrs)."""
+
+
+class _MediaVaultFileHandler(RotatingFileHandler):
+    """Handler subclass used as an identity marker (no custom attrs)."""
+
+
 def get_logger(name: str | None = None) -> logging.Logger:
-    """Return the application logger (or a child of it)."""
     if name:
         return logging.getLogger(f"{LOGGER_NAME}.{name}")
     return logging.getLogger(LOGGER_NAME)
@@ -28,32 +35,18 @@ def configure_logging(
     log_filename: str = "mediavault-cli.log",
     console_level: str | None = None,
 ) -> logging.Logger:
-    """Configure the "mediavault" logger idempotently.
-
-    Parameters
-    ----------
-    level:
-        File-handler level (DEBUG by default in practice; FR-1301).
-    log_dir:
-        Directory for the rotating file. If None, file logging is skipped
-        (useful for tests and early bootstrapping).
-    log_filename:
-        Rotating log file name.
-    console_level:
-        Console-handler level. Defaults to *level*. During an interactive
-        menu session, pass "WARNING" to keep the UI readable (FR-1302).
-    """
     logger = logging.getLogger(LOGGER_NAME)
-    logger.setLevel(logging.DEBUG)  # handlers do the filtering
-    logger.propagate = False        # don't leak to the root logger
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
 
-    # Idempotency guard: if we've already installed our handlers, stop.
-    if getattr(logger, "_mediavault_configured", False):
+    # Idempotency: if our handlers are already installed, we're done.
+    if any(isinstance(h, (_MediaVaultConsoleHandler, _MediaVaultFileHandler))
+           for h in logger.handlers):
         return logger
 
     formatter = logging.Formatter(_LOG_FORMAT)
 
-    console = logging.StreamHandler()
+    console = _MediaVaultConsoleHandler()
     console.setLevel(getattr(logging, (console_level or level).upper()))
     console.setFormatter(formatter)
     logger.addHandler(console)
@@ -61,7 +54,7 @@ def configure_logging(
     if log_dir is not None:
         log_path = Path(log_dir).expanduser()
         log_path.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
+        file_handler = _MediaVaultFileHandler(
             log_path / log_filename,
             maxBytes=5 * 1024 * 1024,
             backupCount=3,
@@ -71,5 +64,4 @@ def configure_logging(
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    logger._mediavault_configured = True  # type: ignore[attr-defined]
     return logger
