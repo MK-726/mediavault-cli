@@ -21,7 +21,7 @@ import os
 import stat
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Callable
 
 from mediavault.constants import (
     SUBTITLE_EXTENSIONS,
@@ -95,6 +95,7 @@ def walk_tree(
     follow_symlinks: bool = False,
     include_hidden: bool = False,
     skip_dirs: Iterable[str] = (),
+    prune: Callable[[Path], bool] | None = None,
     stats: WalkStats | None = None,
 ) -> Iterator[WalkEntry]:
     """Yield WalkEntry for every file and directory under *root*.
@@ -202,6 +203,12 @@ def walk_tree(
             # don't yield the root itself, only its descendants.
             if current != root:
                 yield WalkEntry(path=current, is_dir=True)
+
+            # caller-controlled pruning. If prune(path) returns True, do not
+            # descend (but the directory was still yielded above).
+            if prune is not None and prune(current):
+                _log.debug("discovery: prune requested for %s", current)
+                continue
 
             # Descend. On an unreadable directory, log + continue (FR-320).
             try:
