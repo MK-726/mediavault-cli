@@ -23,11 +23,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Iterator, Callable
 
+from mediavault.models import (
+    DiscoveryResult,
+    MediaFile,
+    MediaKind,
+    ParseConfidence,
+    ParseStatus,
+    RootType,
+    ScanRoot,
+)
 from mediavault.constants import (
     SUBTITLE_EXTENSIONS,
     VIDEO_EXTENSIONS,
+    EPISODE_1X02_RE,
+    EPISODE_LONG_RE,
+    EPISODE_SXXEXX_RE,
+    parse_season_dir,
 )
 from mediavault.logging_setup import get_logger
+from mediavault.config.schema import Config
+
 
 _log = get_logger("discovery")
 
@@ -235,3 +250,219 @@ def walk_tree(
             size=st.st_size,
             mtime_ns=st.st_mtime_ns,
         )
+
+
+# ---------------------------------------------------------------------------
+# Part 2: root-type dispatchers (FR-105, FR-105a, FR-310–FR-314, FR-418)
+# ---------------------------------------------------------------------------
+
+_EPISODE_PATTERNS = (EPISODE_SXXEXX_RE, EPISODE_1X02_RE, EPISODE_LONG_RE)
+
+
+def _looks_like_episode_filename(name: str) -> bool:
+    """True if the filename matches any episode pattern (FR-413).
+
+    Used by FR-105a and FR-313/FR-314 for classification, not for parsing.
+    Parsing (extracting show/season/episode) happens in Phase 5.
+    """
+    return any(p.match(name) for p in _EPISODE_PATTERNS)
+
+
+def _is_season_dir(path: Path) -> bool:
+    """True if *path* is a directory whose name is a valid Season-* dir (FR-415)."""
+    return path.is_dir() and parse_season_dir(path.name) is not None
+
+
+def _build_media_file(entry: WalkEntry, kind: MediaKind) -> MediaFile:
+    """Construct a MediaFile from a WalkEntry, deferring parsing to Phase 5."""
+    return MediaFile(
+        path=entry.path,
+        filename=entry.path.name,
+        extension=entry.path.suffix.lower(),
+        kind=kind,
+        size=entry.size or 0,
+        mtime_ns=entry.mtime_ns or 0,
+        parse_status=ParseStatus.UNPARSED,
+        parse_confidence=ParseConfidence.LOW,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Movies root (FR-310–FR-312)
+# ---------------------------------------------------------------------------
+def _discover_movies(root: ScanRoot, *, config: Config) -> DiscoveryResult:
+    """Recursive movie discovery under a movies root (FR-310).
+
+    FR-312: video files inside a Season-* directory are NOT movies — they
+    are skipped (they're a TV construct). We achieve this by pruning any
+    Season-* directory during the walk: we still see the directory entry
+    (useful for reports/debugging), but we never descend into it, so no
+    video files inside it are ever yielded.
+    """
+    result = DiscoveryResult(root=root)
+
+    def prune(path: Path) -> bool:
+        return _is_season_dir(path)
+
+    for entry in walk_tree(
+        root.path,
+        follow_symlinks=config.general.follow_symlinks,
+        include_hidden=config.general.include_hidden,
+        skip_dirs=config.general.skip_dirs,
+        prune=prune,
+    ):
+        if entry.is_dir:
+            continue
+        if not is_media_file(entry.path):
+            if is_subtitle_file(entry.path):
+                # Orphan subtitles are tracked by Phase 9; skip here.
+                pass
+            continue
+        result.media_files.append(_build_media_file(entry, MediaKind.MOVIE))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# TV root (FR-313, FR-314, FR-418)
+# ---------------------------------------------------------------------------
+def _discover_tv(root: ScanRoot, *, config: Config) -> DiscoveryResult:
+    """Show/season/episode discovery under a tv root (FR-313–FR-314).
+
+    Show directories are FIRST-LEVEL subdirectories of the root (FR-313).
+    A directory is a show directory if it contains at least one Season-*
+    subdirectory OR at least one episode-pattern filename directly.
+    Candidates that don't qualify are pruned (no descent).
+
+    Within a show directory (FR-314):
+      * under a Season-* directory → episode
+      * elsewhere → episode if the filename matches an episode pattern;
+        otherwise still an episode with parse_status=UNPARSED (FR-418)
+    """
+    result = DiscoveryResult(root=root)
+
+    def prune_top_level(path: Path) -> bool:
+        # Only prune *direct children* of the root: those are show candidates.
+        # Everything deeper is already inside a show and gets fully walked.
+        if path.parent != root.path:
+            return False
+        if not path.is_dir():
+            return False
+        return not _is_show_directory(path)
+
+    for entry in walk_tree(
+        root.path,
+        follow_symlinks=config.general.follow_symlinks,
+        include_hidden=config.general.include_hidden,
+        skip_dirs=config.general.skip_dirs,
+        prune=prune_top_level,
+    ):
+        if entry.is_dir:
+            continue
+        if not is_media_file(entry.path):
+            continue
+
+        in_season_dir = _has_season_ancestor(entry.path, root.path)
+        matches_pattern = _looks_like_episode_filename(entry.path.name)
+
+        if in_season_dir or matches_pattern:
+            result.media_files.append(
+                _build_media_file(entry, MediaKind.EPISODE))
+        else:
+            # FR-314/FR-418: still an episode, but parsing will fail later.
+            result.media_files.append(
+                _build_media_file(entry, MediaKind.EPISODE))
+
+    return result
+
+
+def _is_show_directory(path: Path) -> bool:
+    """FR-313: does *path* contain Season-* subdirs or episode-pattern files?"""
+    try:
+        for child in path.iterdir():
+            if child.is_dir() and parse_season_dir(child.name) is not None:
+                return True
+            if child.is_file() and _looks_like_episode_filename(child.name):
+                return True
+    except OSError as exc:
+        _log.warning(
+            "discovery: cannot inspect show candidate %s: %s", path, exc)
+        return False
+    return False
+
+
+def _has_season_ancestor(path: Path, stop_at: Path) -> bool:
+    """True if some ancestor of *path* (up to *stop_at*) is a Season-* dir."""
+    for ancestor in path.parents:
+        if ancestor == stop_at:
+            return False
+        if _is_season_dir(ancestor):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Auto root (FR-105a)
+# ---------------------------------------------------------------------------
+def _classify_auto_file(path: Path, root: Path) -> MediaKind:
+    """FR-105a: episode if inside Season-* OR filename matches episode pattern.
+
+    Every file gets classified exactly once. Precedence: episode wins.
+    """
+    if _has_season_ancestor(path, root):
+        return MediaKind.EPISODE
+    if _looks_like_episode_filename(path.name):
+        return MediaKind.EPISODE
+    return MediaKind.MOVIE
+
+
+def _discover_auto(root: ScanRoot, *, config: Config) -> DiscoveryResult:
+    """Both passes, per-file precedence (FR-105, FR-105a).
+
+    Unlike movies/tv, an auto root does not prune anything: every file
+    must be classified, so every directory must be descended (except the
+    usual junk/hidden/season-less rules — auto doesn't know to prune
+    Season-* dirs because a Season-* dir under auto might contain movies
+    that happen to live in a Season-named folder... but per FR-105a, a file
+    inside a Season-* dir is always an episode, so it's safe to still walk.
+    """
+    result = DiscoveryResult(root=root)
+
+    for entry in walk_tree(
+        root.path,
+        follow_symlinks=config.general.follow_symlinks,
+        include_hidden=config.general.include_hidden,
+        skip_dirs=config.general.skip_dirs,
+    ):
+        if entry.is_dir:
+            continue
+        if not is_media_file(entry.path):
+            continue
+        kind = _classify_auto_file(entry.path, root.path)
+        _log.debug(
+            "discovery: auto root %s classified %s as %s",
+            root.path, entry.path, kind.value,
+        )
+        result.media_files.append(_build_media_file(entry, kind))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Public entry point (FR-105)
+# ---------------------------------------------------------------------------
+def discover(root: ScanRoot, *, config: Config) -> DiscoveryResult:
+    """Dispatch to the correct discovery pass based on ``root.root_type``.
+
+    ``config`` is the resolved application Config (mediavault.config.Config).
+    Only ``config.general`` is read here.
+    """
+    match root.root_type:
+        case RootType.MOVIES:
+            return _discover_movies(root, config=config)
+        case RootType.TV:
+            return _discover_tv(root, config=config)
+        case RootType.AUTO:
+            return _discover_auto(root, config=config)
+        case _:  # pragma: no cover - exhaustive above
+            raise ValueError(f"unknown root_type: {root.root_type!r}")

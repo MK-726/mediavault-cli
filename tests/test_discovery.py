@@ -13,7 +13,17 @@ from mediavault.discovery import (
     is_subtitle_file,
     matches_any,
     walk_tree,
+    discover
 )
+from mediavault.models import (
+    DiscoveryResult,
+    MediaKind,
+    ParseStatus,
+    RootType,
+    ScanRoot,
+)
+from mediavault.config import load_config
+from mediavault.constants import SUCCESSFUL_SCAN_STATUSES  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -217,3 +227,135 @@ def test_walk_reports_unreadable_dir_and_continues(tmp_path):
         assert stats.errors >= 1
     finally:
         bad.chmod(0o755)
+
+# ---------------------------------------------------------------------------
+# Part 2: dispatchers
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cfg(tmp_path):
+    """Resolved Config with sane defaults, isolated from the real config."""
+    for k in list(os.environ):
+        if k.startswith("MEDIAVAULT_CLI_"):
+            os.environ.pop(k, None)
+    cfg = load_config(project_config=None)
+    return cfg
+
+
+def _root(path: Path, root_type: RootType) -> ScanRoot:
+    return ScanRoot(path=path, root_type=root_type)
+
+
+# --- movies ---------------------------------------------------------------
+def test_discover_movies_finds_recursive_files(tmp_path, cfg):
+    _touch(tmp_path / "a.mkv")
+    _touch(tmp_path / "sub" / "b.mp4")
+    _touch(tmp_path / "MCU" / "Iron.Man.2008.mkv")
+    r = discover(_root(tmp_path, RootType.MOVIES), config=cfg)
+    names = {mf.filename for mf in r.media_files}
+    assert names == {"a.mkv", "b.mp4", "Iron.Man.2008.mkv"}
+    assert all(mf.kind == MediaKind.MOVIE for mf in r.media_files)
+
+
+def test_discover_movies_skips_season_dirs(tmp_path, cfg):
+    """FR-312: video in Season-* under a movies root is skipped."""
+    _touch(tmp_path / "Good.Movie.2020.mkv")
+    _touch(tmp_path / "Season-1" / "some.episode.mkv")
+    r = discover(_root(tmp_path, RootType.MOVIES), config=cfg)
+    names = {mf.filename for mf in r.media_files}
+    assert names == {"Good.Movie.2020.mkv"}
+
+
+def test_discover_movies_ignores_non_media(tmp_path, cfg):
+    _touch(tmp_path / "a.mkv")
+    _touch(tmp_path / "a.srt")
+    _touch(tmp_path / "notes.txt")
+    r = discover(_root(tmp_path, RootType.MOVIES), config=cfg)
+    assert {mf.filename for mf in r.media_files} == {"a.mkv"}
+
+
+def test_discover_movies_media_files_are_unparsed(tmp_path, cfg):
+    _touch(tmp_path / "A.Movie.2020.mkv")
+    r = discover(_root(tmp_path, RootType.MOVIES), config=cfg)
+    assert len(r.media_files) == 1
+    assert r.media_files[0].parse_status == ParseStatus.UNPARSED
+    assert r.media_files[0].parsed_title is None
+
+
+# --- tv -------------------------------------------------------------------
+def test_discover_tv_show_with_seasons(tmp_path, cfg):
+    _touch(tmp_path / "Breaking-Bad" / "Season-1" / "Breaking.Bad.S01E01.mkv")
+    _touch(tmp_path / "Breaking-Bad" / "Season-2" / "Breaking.Bad.S02E01.mkv")
+    r = discover(_root(tmp_path, RootType.TV), config=cfg)
+    assert len(r.media_files) == 2
+    assert all(mf.kind == MediaKind.EPISODE for mf in r.media_files)
+
+
+def test_discover_tv_one_season_show_flat_layout(tmp_path, cfg):
+    """FR-313: episodes directly in the show dir without a Season subdir."""
+    _touch(tmp_path / "Chernobyl" / "Chernobyl.S01E01.mkv")
+    _touch(tmp_path / "Chernobyl" / "Chernobyl.S01E02.mkv")
+    r = discover(_root(tmp_path, RootType.TV), config=cfg)
+    assert len(r.media_files) == 2
+
+
+def test_discover_tv_non_show_dirs_are_pruned(tmp_path, cfg):
+    """A first-level dir that's neither Season-nor-episode qualified is pruned."""
+    # A top-level dir with no season dirs and no episode-pattern files
+    _touch(tmp_path / "NotAShow" / "random_file.mkv")  # not episode pattern
+    _touch(tmp_path / "RealShow" / "Season-1" / "Real.Show.S01E01.mkv")
+    r = discover(_root(tmp_path, RootType.TV), config=cfg)
+    names = {mf.filename for mf in r.media_files}
+    assert "Real.Show.S01E01.mkv" in names
+    assert "random_file.mkv" not in names
+
+
+def test_discover_tv_episode_inside_season_dir_without_pattern(tmp_path, cfg):
+    """FR-314: inside Season-*, classification is episode regardless of filename."""
+    _touch(tmp_path / "Show" / "Season-1" / "weirdly_named_video.mkv")
+    r = discover(_root(tmp_path, RootType.TV), config=cfg)
+    assert len(r.media_files) == 1
+    assert r.media_files[0].kind == MediaKind.EPISODE
+
+
+def test_discover_tv_episode_outside_season_with_pattern(tmp_path, cfg):
+    """FR-314: outside Season-*, pattern match → episode."""
+    _touch(tmp_path / "Show" / "Show.Name.S01E05.mkv")
+    r = discover(_root(tmp_path, RootType.TV), config=cfg)
+    assert len(r.media_files) == 1
+    assert r.media_files[0].kind == MediaKind.EPISODE
+
+
+# --- auto -----------------------------------------------------------------
+def test_discover_auto_classifies_each_file_once(tmp_path, cfg):
+    """FR-105a: each file is classified exactly once, never double-counted."""
+    _touch(tmp_path / "Movie.2020.mkv")                            # movie
+    # episode (season dir)
+    _touch(tmp_path / "Show" / "Season-1" / "S01E01.mkv")
+    # episode (pattern)
+    _touch(tmp_path / "Show" / "Show.Name.S01E02.mkv")
+    # movie (nested)
+    _touch(tmp_path / "Sub" / "Another.Movie.2021.mp4")
+
+    r = discover(_root(tmp_path, RootType.AUTO), config=cfg)
+    assert len(r.media_files) == 4
+    by_name = {mf.filename: mf.kind for mf in r.media_files}
+    assert by_name["Movie.2020.mkv"] == MediaKind.MOVIE
+    assert by_name["S01E01.mkv"] == MediaKind.EPISODE
+    assert by_name["Show.Name.S01E02.mkv"] == MediaKind.EPISODE
+    assert by_name["Another.Movie.2021.mp4"] == MediaKind.MOVIE
+
+
+def test_discover_auto_no_prune_of_season_dirs(tmp_path, cfg):
+    """Auto must walk Season-* dirs to find files (they're episodes, not skipped)."""
+    _touch(tmp_path / "Show" / "Season-1" / "S01E01.mkv")
+    r = discover(_root(tmp_path, RootType.AUTO), config=cfg)
+    assert len(r.media_files) == 1
+
+
+def test_discover_returns_discovery_result(tmp_path, cfg):
+    _touch(tmp_path / "a.mkv")
+    r = discover(_root(tmp_path, RootType.MOVIES), config=cfg)
+    assert isinstance(r, DiscoveryResult)
+    assert r.root.root_type == RootType.MOVIES
