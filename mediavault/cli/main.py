@@ -10,6 +10,8 @@ from __future__ import annotations
 import typer
 
 from mediavault import __version__
+from mediavault.config import load_config
+from mediavault.errors import ConfigurationError
 from mediavault.logging_setup import configure_logging, get_logger
 
 app = typer.Typer(
@@ -41,9 +43,16 @@ def main(
     ),
 ) -> None:
     """MediaVault CLI."""
-    # Pre-parse setup lives here (see §7). For now: logging only.
-    # Config loading arrives with the config module (Phase 1 remainder).
-    configure_logging(level="INFO", log_dir=None)
+    try:
+        config = load_config()
+    except ConfigurationError as exc:
+        typer.echo(f"configuration error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    configure_logging(
+        level=config.general.log_level,
+        log_dir=config.general.log_dir,
+    )
     _log.debug("mediavault-cli %s starting", __version__)
 
 
