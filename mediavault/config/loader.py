@@ -148,7 +148,6 @@ def load_config(
     resolved = _deep_merge(resolved, _read_toml(_xdg_config_path()))
 
     # 3. project-local (selection rule per FR-1200)
-   # 3. project-local (selection rule per FR-1200)
     if isinstance(project_config, _Unset):
         project_path: Path | None = _project_config_path()
     else:
