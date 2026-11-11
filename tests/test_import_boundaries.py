@@ -39,7 +39,9 @@ def _imported_top_level_names(path: Path) -> set[str]:
 
 
 def _relative_parts(path: Path) -> tuple[str, ...]:
-    """Path components relative to the package root (e.g. ('database','connection.py'))."""
+    """
+    Path components relative to the package root (e.g. ('database','connection.py')).
+    """
     return path.relative_to(PACKAGE_ROOT).parts
 
 
