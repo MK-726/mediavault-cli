@@ -17,7 +17,6 @@ def test_version_flag():
 
 def test_version_does_not_load_config(monkeypatch):
     """--version must work even with broken config (FR-205)."""
-    import os
     monkeypatch.setenv("MEDIAVAULT_CLI_LOG_LEVEL", "BOGUS")
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0

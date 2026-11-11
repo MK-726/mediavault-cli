@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mediavault.config import Config, load_config
+from mediavault.config import load_config
 from mediavault.errors import ConfigurationError
 
 
@@ -39,9 +39,7 @@ def test_full_precedence_chain(tmp_path, monkeypatch):
     xdg = tmp_path / "xdg" / "mediavault-cli" / "config.toml"
     _write_toml(xdg, '[general]\nlog_level = "WARNING"\n')
     # project
-    project = _write_toml(
-        tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n'
-    )
+    project = _write_toml(tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n')
     # env
     monkeypatch.setenv("MEDIAVAULT_CLI_LOG_LEVEL", "ERROR")
 
@@ -53,9 +51,7 @@ def test_full_precedence_chain(tmp_path, monkeypatch):
 
 
 def test_env_beats_project(tmp_path, monkeypatch):
-    project = _write_toml(
-        tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n'
-    )
+    project = _write_toml(tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n')
     monkeypatch.setenv("MEDIAVAULT_CLI_LOG_LEVEL", "ERROR")
     cfg = load_config(project_config=project)
     assert cfg.general.log_level == "ERROR"
@@ -64,9 +60,7 @@ def test_env_beats_project(tmp_path, monkeypatch):
 def test_project_beats_xdg(tmp_path):
     xdg = tmp_path / "xdg" / "mediavault-cli" / "config.toml"
     _write_toml(xdg, '[general]\nlog_level = "WARNING"\n')
-    project = _write_toml(
-        tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n'
-    )
+    project = _write_toml(tmp_path / "project.toml", '[general]\nlog_level = "DEBUG"\n')
     cfg = load_config(project_config=project)
     assert cfg.general.log_level == "DEBUG"
 
@@ -105,8 +99,6 @@ def test_schema_violation_raises(tmp_path):
 
 
 def test_wrong_type_raises(tmp_path):
-    bad = _write_toml(
-        tmp_path / "bad.toml", "[duplicates]\nhash_chunk_bytes = 0\n"
-    )
+    bad = _write_toml(tmp_path / "bad.toml", "[duplicates]\nhash_chunk_bytes = 0\n")
     with pytest.raises(ConfigurationError):
         load_config(project_config=bad)

@@ -19,10 +19,20 @@ from __future__ import annotations
 import fnmatch
 import os
 import stat
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator, Callable
+from typing import Callable, Iterable, Iterator
 
+from mediavault.config.schema import Config
+from mediavault.constants import (
+    EPISODE_1X02_RE,
+    EPISODE_LONG_RE,
+    EPISODE_SXXEXX_RE,
+    SUBTITLE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    parse_season_dir,
+)
+from mediavault.logging_setup import get_logger
 from mediavault.models import (
     DiscoveryResult,
     MediaFile,
@@ -32,17 +42,6 @@ from mediavault.models import (
     RootType,
     ScanRoot,
 )
-from mediavault.constants import (
-    SUBTITLE_EXTENSIONS,
-    VIDEO_EXTENSIONS,
-    EPISODE_1X02_RE,
-    EPISODE_LONG_RE,
-    EPISODE_SXXEXX_RE,
-    parse_season_dir,
-)
-from mediavault.logging_setup import get_logger
-from mediavault.config.schema import Config
-
 
 _log = get_logger("discovery")
 
@@ -58,10 +57,11 @@ class WalkEntry:
     files modified during the scan (the probe/hash stages compare against
     a later stat).
     """
+
     path: Path
     is_dir: bool
-    size: int | None = None        # None for dirs
-    mtime_ns: int | None = None    # None for dirs
+    size: int | None = None  # None for dirs
+    mtime_ns: int | None = None  # None for dirs
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +98,7 @@ def matches_any(name: str, patterns: Iterable[str]) -> bool:
 @dataclass(slots=True)
 class WalkStats:
     """Counters for a single walk. Mutated by ``walk_tree``."""
+
     dirs_visited: int = 0
     files_visited: int = 0
     errors: int = 0
@@ -193,8 +194,7 @@ def walk_tree(
         try:
             is_dir = current.is_dir()
         except OSError as exc:
-            _log.warning(
-                "discovery: cannot check type of %s: %s", current, exc)
+            _log.warning("discovery: cannot check type of %s: %s", current, exc)
             stats.errors += 1
             continue
 
@@ -366,12 +366,10 @@ def _discover_tv(root: ScanRoot, *, config: Config) -> DiscoveryResult:
         matches_pattern = _looks_like_episode_filename(entry.path.name)
 
         if in_season_dir or matches_pattern:
-            result.media_files.append(
-                _build_media_file(entry, MediaKind.EPISODE))
+            result.media_files.append(_build_media_file(entry, MediaKind.EPISODE))
         else:
             # FR-314/FR-418: still an episode, but parsing will fail later.
-            result.media_files.append(
-                _build_media_file(entry, MediaKind.EPISODE))
+            result.media_files.append(_build_media_file(entry, MediaKind.EPISODE))
 
     return result
 
@@ -385,8 +383,7 @@ def _is_show_directory(path: Path) -> bool:
             if child.is_file() and _looks_like_episode_filename(child.name):
                 return True
     except OSError as exc:
-        _log.warning(
-            "discovery: cannot inspect show candidate %s: %s", path, exc)
+        _log.warning("discovery: cannot inspect show candidate %s: %s", path, exc)
         return False
     return False
 
@@ -441,7 +438,9 @@ def _discover_auto(root: ScanRoot, *, config: Config) -> DiscoveryResult:
         kind = _classify_auto_file(entry.path, root.path)
         _log.debug(
             "discovery: auto root %s classified %s as %s",
-            root.path, entry.path, kind.value,
+            root.path,
+            entry.path,
+            kind.value,
         )
         result.media_files.append(_build_media_file(entry, kind))
 

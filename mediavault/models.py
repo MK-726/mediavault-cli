@@ -74,6 +74,7 @@ class ScanRun:
 
     Counters are mutable because the scanner updates them as it progresses.
     """
+
     id: int | None = None
     started_at: str | None = None
     ended_at: str | None = None
@@ -105,9 +106,10 @@ class MediaFile:
     ``path`` is the identity in v1 (FR-805). ``size`` and ``mtime_ns``
     drive cache invalidation (FR-500, FR-504) and staged hashing (FR-701).
     """
+
     path: Path
     filename: str
-    extension: str            # lowercase, with dot (".mkv")
+    extension: str  # lowercase, with dot (".mkv")
     kind: MediaKind
     size: int
     mtime_ns: int
@@ -118,13 +120,13 @@ class MediaFile:
     missing_since_scan_id: int | None = None
 
     # parsed metadata (FR-403, FR-808)
-    parsed_title: str | None = None      # display form
+    parsed_title: str | None = None  # display form
     parsed_year: int | None = None
     parse_status: ParseStatus = ParseStatus.UNPARSED
     parse_confidence: ParseConfidence = ParseConfidence.LOW
 
     # episode identity (parsed)
-    show_key: str | None = None          # match key, e.g. "breaking_bad"
+    show_key: str | None = None  # match key, e.g. "breaking_bad"
     season: int | None = None
     episode: int | None = None
 
@@ -140,9 +142,9 @@ class MediaFile:
     audio_codec: str | None = None
     audio_channels: int | None = None
     audio_streams_json: str | None = None
-    has_embedded_subs: bool | None = None   # None = unknown (FR-507)
+    has_embedded_subs: bool | None = None  # None = unknown (FR-507)
     embedded_sub_count: int | None = None
-    embedded_sub_langs: str | None = None   # comma-separated
+    embedded_sub_langs: str | None = None  # comma-separated
     probed_at: str | None = None
     ffprobe_version: str | None = None
 
@@ -155,6 +157,7 @@ class Movie:
     ``franchise`` is the single-level subdirectory name under a movies root
     (FR-310), or None.
     """
+
     media_file_id: int
     franchise: str | None = None
     id: int | None = None
@@ -162,8 +165,8 @@ class Movie:
 
 @dataclass(frozen=True, slots=True)
 class Show:
-    show_key: str        # match key: lowercased, underscore-separated (FR-410)
-    display_name: str    # display: whitespace-separated, title-case
+    show_key: str  # match key: lowercased, underscore-separated (FR-410)
+    display_name: str  # display: whitespace-separated, title-case
     id: int | None = None
 
 
@@ -190,7 +193,7 @@ class Episode:
 class Subtitle:
     media_file_id: int
     kind: SubtitleKind
-    path: Path | None = None           # None for embedded (FR-602)
+    path: Path | None = None  # None for embedded (FR-602)
     is_primary: bool = False
     missing_since_scan_id: int | None = None
     id: int | None = None
@@ -220,6 +223,7 @@ class DuplicateMember:
 @dataclass(slots=True)
 class DiscoveryResult:
     """Result of one root's discovery pass (FR-310–FR-314)."""
+
     root: ScanRoot
     media_files: list[MediaFile] = field(default_factory=list)
     orphan_subtitles: list[Path] = field(default_factory=list)

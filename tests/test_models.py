@@ -63,8 +63,12 @@ def test_media_file_minimal():
 
 def test_media_file_embedded_subs_tristate():
     mf = MediaFile(
-        path=Path("/x.mkv"), filename="x.mkv", extension=".mkv",
-        kind=MediaKind.MOVIE, size=1, mtime_ns=2,
+        path=Path("/x.mkv"),
+        filename="x.mkv",
+        extension=".mkv",
+        kind=MediaKind.MOVIE,
+        size=1,
+        mtime_ns=2,
         has_embedded_subs=False,
     )
     assert mf.has_embedded_subs is False

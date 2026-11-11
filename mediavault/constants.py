@@ -19,7 +19,8 @@ SUBTITLE_EXTENSIONS: frozenset[str] = frozenset({".srt"})
 
 # Convenience: extensions without the leading dot, for reporting/filters.
 VIDEO_EXTENSIONS_BARE: frozenset[str] = frozenset(
-    e.lstrip(".") for e in VIDEO_EXTENSIONS)
+    e.lstrip(".") for e in VIDEO_EXTENSIONS
+)
 
 
 # ---------------------------------------------------------------------------
@@ -31,18 +32,61 @@ VIDEO_EXTENSIONS_BARE: frozenset[str] = frozenset(
 JUNK_TOKENS: frozenset[str] = frozenset(
     {
         # resolution
-        "480p", "576p", "720p", "1080p", "1080i", "2160p", "4k", "uhd",
+        "480p",
+        "576p",
+        "720p",
+        "1080p",
+        "1080i",
+        "2160p",
+        "4k",
+        "uhd",
         # source
-        "bluray", "blu-ray", "brrip", "bdrip", "web-dl", "webdl", "webrip",
-        "web", "hdtv", "dvdrip", "dvd", "remux",
+        "bluray",
+        "blu-ray",
+        "brrip",
+        "bdrip",
+        "web-dl",
+        "webdl",
+        "webrip",
+        "web",
+        "hdtv",
+        "dvdrip",
+        "dvd",
+        "remux",
         # codecs
-        "x264", "x265", "h264", "h265", "h.264", "h.265", "hevc", "avc",
-        "xvid", "divx",
+        "x264",
+        "x265",
+        "h264",
+        "h265",
+        "h.264",
+        "h.265",
+        "hevc",
+        "avc",
+        "xvid",
+        "divx",
         # audio
-        "aac", "ac3", "dts", "ddp", "dd", "truehd", "atmos", "5.1", "7.1",
+        "aac",
+        "ac3",
+        "dts",
+        "ddp",
+        "dd",
+        "truehd",
+        "atmos",
+        "5.1",
+        "7.1",
         # misc
-        "10bit", "8bit", "hdr", "hdr10", "dv", "proper", "repack", "extended",
-        "unrated", "remastered", "directors", "cut",
+        "10bit",
+        "8bit",
+        "hdr",
+        "hdr10",
+        "dv",
+        "proper",
+        "repack",
+        "extended",
+        "unrated",
+        "remastered",
+        "directors",
+        "cut",
     }
 )
 
@@ -55,9 +99,7 @@ JUNK_TOKENS: frozenset[str] = frozenset(
 #
 # Implemented as a single regex plus a post-match validation for padding,
 # because FR-415 distinguishes 1-9 (permissive) from >=10 (unpadded only).
-SEASON_DIR_RE: re.Pattern[str] = re.compile(
-    r"^season-(?P<num>\d+)$", re.IGNORECASE
-)
+SEASON_DIR_RE: re.Pattern[str] = re.compile(r"^season-(?P<num>\d+)$", re.IGNORECASE)
 
 
 def parse_season_dir(name: str) -> int | None:

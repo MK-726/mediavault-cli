@@ -17,10 +17,8 @@ def test_configure_logging_is_idempotent(tmp_path):
     configure_logging(level="INFO", log_dir=tmp_path)
     configure_logging(level="INFO", log_dir=tmp_path)
 
-    console = [h for h in logger.handlers if isinstance(
-        h, _MediaVaultConsoleHandler)]
-    files = [h for h in logger.handlers if isinstance(
-        h, _MediaVaultFileHandler)]
+    console = [h for h in logger.handlers if isinstance(h, _MediaVaultConsoleHandler)]
+    files = [h for h in logger.handlers if isinstance(h, _MediaVaultFileHandler)]
 
     assert len(console) == 1
     assert len(files) == 1

@@ -49,6 +49,4 @@ class Config:
                 duplicates=DuplicatesConfig(**data["duplicates"]),
             )
         except (KeyError, TypeError) as exc:
-            raise ConfigurationError(
-                f"configuration schema violation: {exc}"
-            ) from exc
+            raise ConfigurationError(f"configuration schema violation: {exc}") from exc

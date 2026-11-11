@@ -35,6 +35,7 @@ def _movie(name: str) -> MediaFile:
         mtime_ns=2,
     )
 
+
 # ---------------------------------------------------------------------------
 # to_display_title (FR-402)
 # ---------------------------------------------------------------------------
@@ -48,12 +49,12 @@ def _movie(name: str) -> MediaFile:
         ("Spider-Man", "Spider Man"),
         ("Spider_Man", "Spider Man"),
         ("Schindler's List", "Schindlers List"),
-        ("Schindler’s List", "Schindlers List"),   # curly apostrophe
+        ("Schindler’s List", "Schindlers List"),  # curly apostrophe
         ("Ocean's 11", "Oceans 11"),
         ("10.Cloverfield.Lane", "10 Cloverfield Lane"),
         ("Amélie", "Amélie"),
         ("The.Matrix", "The Matrix"),
-        ("MCU", "Mcu"),                            # no acronym preservation
+        ("MCU", "Mcu"),  # no acronym preservation
         ("  extra   spaces  ", "Extra Spaces"),
         ("", ""),
         ("...", ""),
@@ -90,10 +91,10 @@ def test_to_match_key(raw, expected):
         ("Movie.2020.1080p.BluRay.x264", "Movie 2020"),
         ("Movie 2020 1080p", "Movie 2020"),
         ("1080p.Movie.2020", "Movie 2020"),
-        ("WEB-DL.Movie", "Movie"),             # hyphenated junk token — FIXED
+        ("WEB-DL.Movie", "Movie"),  # hyphenated junk token — FIXED
         ("Movie.Extended.Cut", "Movie"),
         ("NoJunkHere", "NoJunkHere"),
-        ("Spider-Man", "Spider Man"),          # title hyphen survives
+        ("Spider-Man", "Spider Man"),  # title hyphen survives
         ("Movie.H.264.1080p", "Movie"),
         ("", ""),
     ],
@@ -109,21 +110,46 @@ def test_strip_junk_tokens(raw, expected):
     "filename, want_title, want_year, want_status, want_conf",
     [
         # Pattern 1: Title (Year) [junk].ext
-        ("A Clockwork Orange (1971) [1080p].mkv",
-         "A Clockwork Orange", 1971, ParseStatus.OK, ParseConfidence.HIGH),
+        (
+            "A Clockwork Orange (1971) [1080p].mkv",
+            "A Clockwork Orange",
+            1971,
+            ParseStatus.OK,
+            ParseConfidence.HIGH,
+        ),
         ("Movie (2020).mkv", "Movie", 2020, ParseStatus.OK, ParseConfidence.MEDIUM),
         # Pattern 2: Title.Year.Resolution.Source.Codec
-        ("A.Clockwork.Orange.1971.1080p.BluRay.x264.mkv",
-         "A Clockwork Orange", 1971, ParseStatus.OK, ParseConfidence.HIGH),
+        (
+            "A.Clockwork.Orange.1971.1080p.BluRay.x264.mkv",
+            "A Clockwork Orange",
+            1971,
+            ParseStatus.OK,
+            ParseConfidence.HIGH,
+        ),
         # Pattern 3: Title.Year.Resolution
-        ("A.Clockwork.Orange.1971.1080p.mkv",
-         "A Clockwork Orange", 1971, ParseStatus.OK, ParseConfidence.HIGH),
+        (
+            "A.Clockwork.Orange.1971.1080p.mkv",
+            "A Clockwork Orange",
+            1971,
+            ParseStatus.OK,
+            ParseConfidence.HIGH,
+        ),
         # Pattern 4: Title.Year
-        ("A.Clockwork.Orange.1971.mkv",
-         "A Clockwork Orange", 1971, ParseStatus.OK, ParseConfidence.HIGH),
+        (
+            "A.Clockwork.Orange.1971.mkv",
+            "A Clockwork Orange",
+            1971,
+            ParseStatus.OK,
+            ParseConfidence.HIGH,
+        ),
         # Underscore form
-        ("Spider_Man_2002.mkv",
-         "Spider Man", 2002, ParseStatus.OK, ParseConfidence.HIGH),
+        (
+            "Spider_Man_2002.mkv",
+            "Spider Man",
+            2002,
+            ParseStatus.OK,
+            ParseConfidence.HIGH,
+        ),
     ],
 )
 def test_parse_movie_ok_patterns(

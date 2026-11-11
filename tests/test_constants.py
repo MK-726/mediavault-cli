@@ -45,16 +45,31 @@ def test_parse_season_dir(name, expected):
 @pytest.mark.parametrize(
     "pattern, filename, expected",
     [
-        (EPISODE_SXXEXX_RE, "Breaking.Bad.S01E02.1080p.mkv",
-         {"show": "Breaking.Bad", "season": "01", "episode": "02"}),
-        (EPISODE_SXXEXX_RE, "Chernobyl.S01E01.mkv",
-         {"show": "Chernobyl", "season": "01", "episode": "01"}),
-        (EPISODE_SXXEXX_RE, "Show.Name.S1E2.mkv",
-         {"show": "Show.Name", "season": "1", "episode": "2"}),
-        (EPISODE_1X02_RE, "Breaking.Bad.1x02.720p.mkv",
-         {"show": "Breaking.Bad", "season": "1", "episode": "02"}),
-        (EPISODE_LONG_RE, "Breaking.Bad.Season.1.Episode.2.mkv",
-         {"show": "Breaking.Bad", "season": "1", "episode": "2"}),
+        (
+            EPISODE_SXXEXX_RE,
+            "Breaking.Bad.S01E02.1080p.mkv",
+            {"show": "Breaking.Bad", "season": "01", "episode": "02"},
+        ),
+        (
+            EPISODE_SXXEXX_RE,
+            "Chernobyl.S01E01.mkv",
+            {"show": "Chernobyl", "season": "01", "episode": "01"},
+        ),
+        (
+            EPISODE_SXXEXX_RE,
+            "Show.Name.S1E2.mkv",
+            {"show": "Show.Name", "season": "1", "episode": "2"},
+        ),
+        (
+            EPISODE_1X02_RE,
+            "Breaking.Bad.1x02.720p.mkv",
+            {"show": "Breaking.Bad", "season": "1", "episode": "02"},
+        ),
+        (
+            EPISODE_LONG_RE,
+            "Breaking.Bad.Season.1.Episode.2.mkv",
+            {"show": "Breaking.Bad", "season": "1", "episode": "2"},
+        ),
     ],
 )
 def test_episode_patterns_match(pattern, filename, expected):

@@ -40,8 +40,10 @@ def configure_logging(
     logger.propagate = False
 
     # Idempotency: if our handlers are already installed, we're done.
-    if any(isinstance(h, (_MediaVaultConsoleHandler, _MediaVaultFileHandler))
-           for h in logger.handlers):
+    if any(
+        isinstance(h, (_MediaVaultConsoleHandler, _MediaVaultFileHandler))
+        for h in logger.handlers
+    ):
         return logger
 
     formatter = logging.Formatter(_LOG_FORMAT)

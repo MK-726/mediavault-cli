@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import os  # noqa: E402  (needed by the skip-decorator pattern below)
+from pathlib import Path
 
 import pytest
 
+from mediavault.config import load_config
+from mediavault.constants import SUCCESSFUL_SCAN_STATUSES  # noqa: F401
 from mediavault.discovery import (
     WalkStats,
+    discover,
     is_media_file,
     is_subtitle_file,
     matches_any,
     walk_tree,
-    discover
 )
 from mediavault.models import (
     DiscoveryResult,
@@ -22,8 +24,6 @@ from mediavault.models import (
     RootType,
     ScanRoot,
 )
-from mediavault.config import load_config
-from mediavault.constants import SUCCESSFUL_SCAN_STATUSES  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -127,9 +127,7 @@ def test_walk_skips_hidden_by_default(tmp_path):
 def test_walk_includes_hidden_when_requested(tmp_path):
     _touch(tmp_path / ".hidden.mkv")
     names = {
-        e.path.name
-        for e in walk_tree(tmp_path, include_hidden=True)
-        if not e.is_dir
+        e.path.name for e in walk_tree(tmp_path, include_hidden=True) if not e.is_dir
     }
     assert ".hidden.mkv" in names
 
@@ -141,9 +139,7 @@ def test_walk_skips_junk_dirs(tmp_path):
     _touch(tmp_path / "@eaDir" / "x.mkv")
     _touch(tmp_path / "keep" / "y.mkv")
     names = {
-        e.path.name
-        for e in walk_tree(tmp_path, skip_dirs=["@eaDir"])
-        if not e.is_dir
+        e.path.name for e in walk_tree(tmp_path, skip_dirs=["@eaDir"]) if not e.is_dir
     }
     assert "y.mkv" in names
     assert "x.mkv" not in names
@@ -218,15 +214,12 @@ def test_walk_reports_unreadable_dir_and_continues(tmp_path):
     _touch(good / "ok.mkv")
     try:
         stats = WalkStats()
-        names = {
-            e.path.name
-            for e in walk_tree(tmp_path, stats=stats)
-            if not e.is_dir
-        }
+        names = {e.path.name for e in walk_tree(tmp_path, stats=stats) if not e.is_dir}
         assert "ok.mkv" in names
         assert stats.errors >= 1
     finally:
         bad.chmod(0o755)
+
 
 # ---------------------------------------------------------------------------
 # Part 2: dispatchers
@@ -330,7 +323,7 @@ def test_discover_tv_episode_outside_season_with_pattern(tmp_path, cfg):
 # --- auto -----------------------------------------------------------------
 def test_discover_auto_classifies_each_file_once(tmp_path, cfg):
     """FR-105a: each file is classified exactly once, never double-counted."""
-    _touch(tmp_path / "Movie.2020.mkv")                            # movie
+    _touch(tmp_path / "Movie.2020.mkv")  # movie
     # episode (season dir)
     _touch(tmp_path / "Show" / "Season-1" / "S01E01.mkv")
     # episode (pattern)

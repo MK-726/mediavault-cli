@@ -16,7 +16,6 @@ This module is UI-agnostic (NFR-015) and stdlib-only apart from
 mediavault.constants and mediavault.models.
 """
 
-
 from __future__ import annotations
 
 import re
@@ -26,13 +25,12 @@ from mediavault.constants import (
     VIDEO_EXTENSIONS,
     WORD_SEPARATORS_RE,
 )
+from mediavault.logging_setup import get_logger
 from mediavault.models import (
     MediaFile,
     ParseConfidence,
     ParseStatus,
 )
-from mediavault.logging_setup import get_logger
-
 
 _log = get_logger("parsing")
 
@@ -192,8 +190,7 @@ def parse_movie(media_file: MediaFile) -> MediaFile:
             media_file.parsed_year = None
             media_file.parse_status = ParseStatus.PARTIAL
             media_file.parse_confidence = ParseConfidence.LOW
-            _log.debug("parse_movie: partial (no year) for %s",
-                       media_file.path)
+            _log.debug("parse_movie: partial (no year) for %s", media_file.path)
         else:
             media_file.parse_status = ParseStatus.UNPARSED
             media_file.parse_confidence = ParseConfidence.LOW
@@ -205,8 +202,7 @@ def parse_movie(media_file: MediaFile) -> MediaFile:
     if not display:
         media_file.parse_status = ParseStatus.UNPARSED
         media_file.parse_confidence = ParseConfidence.LOW
-        _log.debug("parse_movie: unparsed (empty title) for %s",
-                   media_file.path)
+        _log.debug("parse_movie: unparsed (empty title) for %s", media_file.path)
         return media_file
 
     media_file.parsed_title = display
@@ -217,6 +213,8 @@ def parse_movie(media_file: MediaFile) -> MediaFile:
     )
     _log.debug(
         "parse_movie: ok %r (%d) for %s",
-        display, year, media_file.path,
+        display,
+        year,
+        media_file.path,
     )
     return media_file

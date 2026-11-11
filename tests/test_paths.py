@@ -1,9 +1,8 @@
-"""Path validation and canonicalization tests (FR-300–FR-304, FR-321, FR-322, FR-1110)."""
+"""
+Path validation and canonicalization tests (FR-300–FR-304, FR-321, FR-322, FR-1110).
+"""
 
 from __future__ import annotations
-
-import os
-from pathlib import Path
 
 import pytest
 
@@ -192,7 +191,6 @@ def test_is_inside_scan_root_through_symlink(tmp_path):
     # A symlink inside the root pointing outside should resolve outside;
     # a symlink outside pointing into the root should resolve inside.
     link = outside / "into-root"
-    link.symlink_to(root / "reports" if False else root,
-                    target_is_directory=True)
+    link.symlink_to(root / "reports" if False else root, target_is_directory=True)
     # link resolves to root → it IS inside
     assert is_inside_scan_root(link, [root]) is True
