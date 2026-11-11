@@ -13,6 +13,7 @@ ruff = "*"
 pytest = "*"
 pytest-cov = "*"
 pre-commit = "*"
+pyright = "*"
 
 [requires]
 python_version = "3.14"
