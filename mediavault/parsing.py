@@ -70,12 +70,15 @@ def to_match_key(raw: str) -> str:
 # ---------------------------------------------------------------------------
 # Junk-token stripping (FR-401)
 # ---------------------------------------------------------------------------
+# Deterministic, longest-first ordering. Substring junk tokens (e.g.
+# 'web' is a prefix of 'web-dl') must be applied after their longer
+# counterparts, otherwise 'web' splits 'WEB-DL' before 'web-dl' can match.
 _JUNK_PATTERNS = tuple(
     re.compile(
         rf"(?<![A-Za-z0-9]){re.escape(token)}(?![A-Za-z0-9])",
         re.IGNORECASE,
     )
-    for token in JUNK_TOKENS
+    for token in sorted(JUNK_TOKENS, key=lambda t: (-len(t), t))
 )
 
 
