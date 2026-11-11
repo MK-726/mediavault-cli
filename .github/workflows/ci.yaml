@@ -1,0 +1,42 @@
+name: Mediavault CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+
+      - name: Install pipenv
+        run: pip install pipenv
+
+      - name: Install project dependencies
+        run: |
+          pipenv install --dev --python 3.14
+          pipenv run pip install -e .
+
+      - name: Type-check with Pyright
+        run: pipenv run pyright
+
+      - name: Run tests
+        run: pipenv run pytest -q
