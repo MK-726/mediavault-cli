@@ -217,6 +217,10 @@ Choose **one** of `questionary` / `InquirerPy` at kickoff; the SRS treats them a
 - A configurable list of junk directories is skipped (default in §9.1).
 - Overlapping scan roots are canonicalized and de-duplicated at scan time (FR-321).
 
+### 3.6 Continuous Integration
+
+CI (implementation note): the repository shall provide a CI pipeline that runs, on every push: (a) installation of the package under Python 3.14, (b) pytest, (c) the import-boundary check (NFR-015), and (d) mypy/ruff if configured. CI enforces DEP-01 and NFR-013 continuously; pre-commit runs the same checks locally.
+
 ---
 
 ## 4. Expected Collection Structure
