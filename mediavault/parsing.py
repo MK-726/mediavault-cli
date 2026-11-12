@@ -18,16 +18,23 @@ mediavault.constants and mediavault.models.
 
 from __future__ import annotations
 
+import dataclasses
 import re
+from pathlib import Path
 
 from mediavault.constants import (
+    EPISODE_1X02_RE,
+    EPISODE_LONG_RE,
+    EPISODE_SXXEXX_RE,
     JUNK_TOKENS,
     VIDEO_EXTENSIONS,
     WORD_SEPARATORS_RE,
+    parse_season_dir,
 )
 from mediavault.logging_setup import get_logger
 from mediavault.models import (
     MediaFile,
+    MediaKind,
     ParseConfidence,
     ParseStatus,
 )
@@ -221,3 +228,169 @@ def parse_movie(media_file: MediaFile) -> MediaFile:
         media_file.path,
     )
     return media_file
+
+
+# ---------------------------------------------------------------------------
+# Episode parsing (FR-410–FR-418)
+# ---------------------------------------------------------------------------
+_EPISODE_PATTERNS = (EPISODE_SXXEXX_RE, EPISODE_1X02_RE, EPISODE_LONG_RE)
+
+
+def _split_episode_identity(path: Path, root: Path) -> tuple[Path | None, Path | None]:
+    """Walk up from *path* to *root*; return (show_dir, season_dir).
+
+    show_dir is the first-level subdirectory of *root* that contains the
+    file (FR-313); season_dir is the innermost valid Season-* ancestor
+    strictly between show_dir and the file (FR-415).
+
+    Both are None if *path* is not under *root*. They are returned as
+    Path objects that may not exist on disk (parsing is filesystem-free,
+    FR-422) — the caller has already verified existence during discovery.
+    """
+    try:
+        rel = path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return (None, None)
+
+    parts = rel.parts
+    if len(parts) < 2:
+        # File directly under root; no show directory.
+        return (None, None)
+
+    show_dir = root / parts[0]
+
+    # Find the innermost ancestor that is a valid Season-* directory,
+    # stopping before show_dir itself.
+    season_dir: Path | None = None
+    current = root
+    for part in parts[:-1]:  # exclude the filename
+        current = current / part
+        if current == show_dir:
+            continue
+        if parse_season_dir(current.name) is not None:
+            season_dir = current  # keep overwriting → innermost wins
+
+    return (show_dir, season_dir)
+
+
+def _match_episode_pattern(name: str) -> re.Match[str] | None:
+    """Return the first matching episode pattern group set, or None."""
+    for pattern in _EPISODE_PATTERNS:
+        m = pattern.match(name)
+        if m:
+            return m
+    return None
+
+
+def parse_episode(media_file: MediaFile, *, root: Path) -> MediaFile:
+    """Parse an episode MediaFile in place and return it.
+
+    Derives (show, season, episode) from the file's path and the scan
+    root, applying directory-wins rules (FR-414, FR-414a).
+
+    Fills ``parsed_title`` (display form of the show name),
+    ``show_key`` (match key), ``season``, ``episode``.
+
+    Sets:
+      * parse_status=OK       — show + season + episode all found
+      * parse_status=PARTIAL  — season derivable, but episode missing
+                                (file is inside a Season-* dir; FR-416)
+      * parse_status=UNPARSED — no episode found and no Season-* dir
+                                (FR-418); show/season may still be filled
+
+    Never raises (FR-420). Does not touch the filesystem (FR-422).
+    """
+    show_dir, season_dir = _split_episode_identity(media_file.path, root)
+
+    # Show identity comes from the directory (FR-410 / FR-414).
+    # If the file is not under the root at all, fall back to the filename.
+    if show_dir is not None:
+        show_raw = show_dir.name
+    else:
+        # Defensive: derive show from filename via the episode pattern.
+        m = _match_episode_pattern(media_file.filename)
+        show_raw = m.group("show") if m else ""
+
+    display = to_display_title(show_raw)
+    if display:
+        media_file.parsed_title = display
+        media_file.show_key = to_match_key(show_raw)
+
+    # Season number (FR-411, FR-414a).
+    season: int | None = None
+    season_source: str | None = None
+    if season_dir is not None:
+        season = parse_season_dir(season_dir.name)
+        season_source = "directory"
+
+    # Episode number (FR-412/FR-413).
+    m = _match_episode_pattern(media_file.filename)
+    episode: int | None = None
+    if m is not None:
+        if season is None:
+            # Only fall back to filename season if no valid Season-* dir.
+            try:
+                season = int(m.group("season"))
+                season_source = "filename"
+            except IndexError, ValueError:
+                season = None
+        try:
+            episode = int(m.group("episode"))
+        except IndexError, ValueError:
+            episode = None
+
+    media_file.season = season
+    media_file.episode = episode
+
+    # Status + confidence.
+    if episode is not None and season is not None:
+        media_file.parse_status = ParseStatus.OK
+        media_file.parse_confidence = (
+            ParseConfidence.HIGH
+            if season_source == "directory"
+            else ParseConfidence.MEDIUM
+        )
+    elif episode is None and season_dir is not None:
+        # FR-416: in a Season-* dir, no episode number → PARTIAL.
+        media_file.parse_status = ParseStatus.PARTIAL
+        media_file.parse_confidence = ParseConfidence.LOW
+    else:
+        # FR-418: no episode + not in a Season-* dir → UNPARSED.
+        media_file.parse_status = ParseStatus.UNPARSED
+        media_file.parse_confidence = ParseConfidence.LOW
+
+    _log.debug(
+        "parse_episode: %s show=%r season=%r episode=%r status=%s",
+        media_file.path,
+        media_file.parsed_title,
+        media_file.season,
+        media_file.episode,
+        media_file.parse_status.value,
+    )
+    return media_file
+
+
+# ---------------------------------------------------------------------------
+# Dispatch entry point (used by services/scanner.py in Phase 7)
+# ---------------------------------------------------------------------------
+def apply_parsing(media_files: list[MediaFile], *, root: Path) -> list[MediaFile]:
+    """Parse every MediaFile and return a new list of new objects.
+
+    Per assumption 3 = B: the caller's list and its elements are NOT
+    mutated. Each element is shallow-copied via dataclasses.replace (safe
+    because MediaFile holds only primitives/Path/enums), then parsed, and
+    the parsed copies are returned.
+
+    Dispatch is by ``media_file.kind``:
+      * MOVIE   → parse_movie
+      * EPISODE → parse_episode(media_file, root=root)
+    """
+    parsed: list[MediaFile] = []
+    for original in media_files:
+        copy = dataclasses.replace(original)
+        if copy.kind == MediaKind.MOVIE:
+            parse_movie(copy)
+        else:
+            parse_episode(copy, root=root)
+        parsed.append(copy)
+    return parsed
