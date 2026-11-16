@@ -114,6 +114,7 @@ def test_extract_metadata_parses_json(monkeypatch, cfg, mf):
     assert result.embedded_sub_langs == "eng,spa"
 
     # The first audio stream summary should be saved as JSON
+    assert result.audio_streams_json is not None
     audio_streams = json.loads(result.audio_streams_json)
     assert len(audio_streams) == 2
     assert audio_streams[0]["language"] == "eng"
