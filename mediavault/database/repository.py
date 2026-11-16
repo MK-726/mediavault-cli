@@ -141,6 +141,7 @@ class Repository:
             """
             INSERT INTO media_files (
                 path, filename, extension, kind, size, mtime_ns,
+                last_seen_scan_id, missing_since_scan_id,
                 parsed_title, parsed_year, parse_status, parse_confidence,
                 show_key, season, episode, near_dup_key,
                 codec, width, height, duration, bit_rate,
@@ -148,6 +149,7 @@ class Repository:
                 has_embedded_subs, embedded_sub_count, embedded_sub_langs
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
+                ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
@@ -162,6 +164,8 @@ class Repository:
                 mf.kind.value,
                 mf.size,
                 mf.mtime_ns,
+                mf.last_seen_scan_id,
+                mf.missing_since_scan_id,
                 mf.parsed_title,
                 mf.parsed_year,
                 mf.parse_status.value,
@@ -185,7 +189,6 @@ class Repository:
         )
         self.conn.commit()
 
-        # Assert to narrow int | None -> int for the type checker.
         assert cur.lastrowid is not None
         return self.get_media_file(cur.lastrowid)
 
