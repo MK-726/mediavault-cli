@@ -8,9 +8,23 @@ from pathlib import Path
 
 from mediavault.config.schema import Config
 from mediavault.logging_setup import get_logger
-from mediavault.models import DuplicateMember, MediaFile
+from mediavault.models import (
+    DuplicateMember,
+    MediaFile,
+    MediaKind,
+    NearDuplicateGroup,
+    NearDuplicateMember,
+)
+from mediavault.parsing import to_match_key
 
 _log = get_logger("duplicates")
+
+
+def _require_id(mf: MediaFile) -> int:
+    """Return mf.id, asserting it is set. Used to narrow types for Pyright."""
+    if mf.id is None:
+        raise ValueError(f"MediaFile {mf.path} has no id")
+    return mf.id
 
 
 def _hash_file_partial(path: Path, bytes_to_read: int) -> str:
@@ -62,7 +76,7 @@ def find_exact_duplicates(
 
     duplicate_groups: list[list[DuplicateMember]] = []
 
-    for size, candidates in size_groups.items():
+    for _, candidates in size_groups.items():
         if len(candidates) < 2:
             continue  # Unique size, cannot be a duplicate
 
@@ -108,3 +122,102 @@ def find_exact_duplicates(
                     duplicate_groups.append(members)
 
     return duplicate_groups
+
+
+def _near_dup_key(mf: MediaFile) -> tuple | None:
+    """Compute the similarity key for a MediaFile (FR-710).
+
+    Returns None when the file cannot participate in near-dup grouping
+    (missing required components).
+    """
+    if mf.kind == MediaKind.MOVIE:
+        if mf.parsed_title is None or mf.parsed_year is None:
+            return None
+        return (to_match_key(mf.parsed_title), mf.parsed_year)
+    else:  # episode
+        if mf.show_key is None or mf.season is None or mf.episode is None:
+            return None
+        return (mf.show_key, mf.season, mf.episode)
+
+
+def find_near_duplicates(
+    media_files: list[MediaFile],
+    exact_groups: list[list[DuplicateMember]],
+) -> list[NearDuplicateGroup]:
+    """Group files by similarity key where ≥2 distinct hashes exist (FR-710–FR-714).
+
+    Parameters
+    ----------
+    media_files:
+        The files to consider (typically from the current scan).
+    exact_groups:
+        The exact-duplicate groups from ``find_exact_duplicates``. Used to
+        look up each file's hash and to annotate exact-duplicate siblings.
+    """
+    # Build a map from media_file_id -> hash_value using the exact groups.
+    hash_by_id: dict[int, str] = {}
+    for group in exact_groups:
+        for member in group:
+            if member.hash_value is not None:
+                hash_by_id[member.media_file_id] = member.hash_value
+
+    # Group files by their similarity key.
+    by_key: dict[tuple, list[MediaFile]] = {}
+    for mf in media_files:
+        _require_id(mf)
+        key = _near_dup_key(mf)
+        if key is None:
+            continue
+        by_key.setdefault(key, []).append(mf)
+
+    results: list[NearDuplicateGroup] = []
+
+    for key, candidates in by_key.items():
+        if len(candidates) < 2:
+            continue
+
+        # FR-711: group requires ≥2 distinct hashes.
+        # Hash is only known for files that were in an exact group; files
+        # without a hash (i.e. size-unique or partial-hash-unique) are
+        # treated as having an implicit "unknown but distinct" hash — BUT
+        # the SRS says "≥2 distinct content hashes exist within that key".
+        # In practice every file the scanner cares about has been hashed if
+        # it had a size collision. Files without hashes cannot be proven
+        # to be exact dups, so they count as distinct.
+        hashes: set[str] = set()
+        for mf in candidates:
+            h = hash_by_id.get(_require_id(mf))
+            if h is not None:
+                hashes.add(h)
+            else:
+                # No hash means the file was unique on its own; treat as
+                # an implicit distinct hash so it can still form a group.
+                hashes.add(f"__unknown_{_require_id(mf)}__")
+
+        if len(hashes) < 2:
+            continue  # All candidates are exact copies of each other
+
+        # Build members. A member is an "exact dup of sibling" iff another
+        # member in the same group shares its hash.
+        hash_counts: dict[str, int] = {}
+        for mf in candidates:
+            h = hash_by_id.get(_require_id(mf))
+            if h is not None:
+                hash_counts[h] = hash_counts.get(h, 0) + 1
+
+        members = []
+        for mf in candidates:
+            mid = _require_id(mf)
+            h = hash_by_id.get(_require_id(mf))
+            is_exact = h is not None and hash_counts.get(h, 0) > 1
+            members.append(
+                NearDuplicateMember(
+                    media_file_id=mid,
+                    hash_value=h,
+                    is_exact_dup_of_sibling=is_exact,
+                )
+            )
+
+        results.append(NearDuplicateGroup(key=key, members=tuple(members)))
+
+    return results

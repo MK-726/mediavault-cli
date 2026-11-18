@@ -217,6 +217,21 @@ class DuplicateMember:
     hash_value: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class NearDuplicateMember:
+    media_file_id: int
+    hash_value: str | None = None
+    is_exact_dup_of_sibling: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class NearDuplicateGroup:
+    """A group of files sharing a similarity key with ≥2 distinct hashes."""
+
+    key: tuple
+    members: tuple[NearDuplicateMember, ...]
+
+
 # ---------------------------------------------------------------------------
 # Discovery/parse hand-off containers (used by services/scanner.py, Phase 7)
 # ---------------------------------------------------------------------------
