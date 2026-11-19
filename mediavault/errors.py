@@ -19,3 +19,7 @@ class LockError(MediaVaultError):
 
 class MigrationError(MediaVaultError):
     """A schema migration failed or the DB is from the future (FR-802a)."""
+
+
+class UsageError(MediaVaultError):
+    """User input violates a usage rule (exit code 2; FR-903a)."""
