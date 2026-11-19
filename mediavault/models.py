@@ -186,6 +186,14 @@ class Episode:
     id: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ShowSummary:
+    show_key: str
+    display_name: str
+    episode_count: int
+    season_count: int
+
+
 # ---------------------------------------------------------------------------
 # Subtitles (FR-600–FR-606)
 # ---------------------------------------------------------------------------
