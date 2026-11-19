@@ -252,3 +252,47 @@ class DiscoveryResult:
     orphan_subtitles: list[Path] = field(default_factory=list)
     # human-readable, already logged
     errors: list[str] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Analyzer (used by services/analyzer.py, Phase 13)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class CodecRow:
+    codec: str | None
+    kind: str  # "movie" or "episode"
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class CodecReport:
+    rows: tuple[CodecRow, ...]
+    total_files: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResolutionRow:
+    width: int | None
+    height: int | None
+    kind: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResolutionReport:
+    rows: tuple[ResolutionRow, ...]
+    total_files: int
+
+
+@dataclass(frozen=True, slots=True)
+class SubtitleReport:
+    movie_total: int
+    movie_both: int
+    movie_external_only: int
+    movie_embedded_only: int
+    movie_neither: int
+    episode_total: int
+    episode_both: int
+    episode_external_only: int
+    episode_embedded_only: int
+    episode_neither: int
