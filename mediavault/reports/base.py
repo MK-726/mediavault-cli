@@ -29,6 +29,10 @@ class ReportData:
     # Used by TXT/MD formatters to render the hybrid 'subs' column.
     files_with_external_subs: frozenset[int] = frozenset()
 
+    # ISO 8601 timestamp; the CLI runner fills this in Phase 15.
+    # Formatters render it only when non-empty.
+    generated_at: str = ""
+
     # Problem sections (FR-1104)
     orphan_subtitles: tuple[Path, ...] = ()
     movies_without_external_subs: tuple[MediaFile, ...] = ()
