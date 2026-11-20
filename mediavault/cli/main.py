@@ -10,6 +10,11 @@ from __future__ import annotations
 import typer
 
 from mediavault import __version__
+from mediavault.cli.commands import analyze as cmd_analyze
+from mediavault.cli.commands import browse as cmd_browse
+from mediavault.cli.commands import export as cmd_export
+from mediavault.cli.commands import scan as cmd_scan
+from mediavault.cli.commands import search as cmd_search
 from mediavault.config import load_config
 from mediavault.errors import ConfigurationError
 from mediavault.logging_setup import configure_logging, get_logger
@@ -54,6 +59,21 @@ def main(
         log_dir=config.general.log_dir,
     )
     _log.debug("mediavault-cli %s starting", __version__)
+
+
+# --- Register subcommands ---
+app.command(name="scan")(cmd_scan.scan)
+app.command(name="search")(cmd_search.search)
+app.command(name="export")(cmd_export.export)
+
+browse_app = typer.Typer(help="Browse movies and episodes.")
+browse_app.command("movies")(cmd_browse.movies)
+browse_app.command("episodes")(cmd_browse.episodes)
+app.add_typer(browse_app, name="browse")
+
+analyze_app = typer.Typer(help="Analyze library statistics.")
+analyze_app.command("codecs")(cmd_analyze.codecs)
+app.add_typer(analyze_app, name="analyze")
 
 
 if __name__ == "__main__":  # pragma: no cover
