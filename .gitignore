@@ -245,7 +245,7 @@ data/
 !data/.gitkeep
 
 # Generated reports / exports
-reports/
+#reports/
 output/
 exports/
 
