@@ -8,25 +8,36 @@ from mediavault.models import MediaFile
 from mediavault.reports.base import ReportData
 
 
-def _format_movie(m: MediaFile) -> list[str]:
-    """Format a single movie block."""
+def _subs_label(has_ext: bool, has_emb: bool) -> str:
+    """Hybrid subtitle label: ext | emb | both | none."""
+    if has_ext and has_emb:
+        return "both"
+    if has_ext:
+        return "ext"
+    if has_emb:
+        return "emb"
+    return "none"
+
+
+def _format_movie(m: MediaFile, has_ext: bool) -> list[str]:
+    """Format a single movie block (FR-1102)."""
     title = m.parsed_title or "(untitled)"
     year = f" ({m.parsed_year})" if m.parsed_year else ""
     res = f"{m.width}x{m.height}" if m.width else "unknown"
     codec = m.codec or "unknown"
     dur = f"{m.duration:.1f}s" if m.duration else "unknown"
-    sub_str = "subs: yes" if m.has_embedded_subs else "subs: no"
+    subs = _subs_label(has_ext, bool(m.has_embedded_subs))
 
     return [
         f"{title}{year}",
         f"  Path:  {m.path}",
-        f"  Video: {res} {codec} | {dur} | {sub_str}",
+        f"  Video: {res} {codec} | {dur} | subs: {subs}",
         "",
     ]
 
 
-def _format_episode(e: MediaFile) -> list[str]:
-    """Format a single episode block."""
+def _format_episode(e: MediaFile, has_ext: bool) -> list[str]:
+    """Format a single episode block (FR-1103)."""
     show = e.parsed_title or e.show_key or "(unknown)"
     if e.season and e.episode:
         ep_str = f"S{e.season:02d}E{e.episode:02d}"
@@ -36,12 +47,12 @@ def _format_episode(e: MediaFile) -> list[str]:
     res = f"{e.width}x{e.height}" if e.width else "unknown"
     codec = e.codec or "unknown"
     dur = f"{e.duration:.1f}s" if e.duration else "unknown"
-    sub_str = "subs: yes" if e.has_embedded_subs else "subs: no"
+    subs = _subs_label(has_ext, bool(e.has_embedded_subs))
 
     return [
         f"{show} {ep_str}",
         f"  Path:  {e.path}",
-        f"  Video: {res} {codec} | {dur} | {sub_str}",
+        f"  Video: {res} {codec} | {dur} | subs: {subs}",
         "",
     ]
 
@@ -50,8 +61,8 @@ class TxtReport:
     """Plain text report renderer."""
 
     def render(self, data: ReportData) -> str:
-        """Render the report to a plain text string."""
         lines: list[str] = []
+        ext_ids = data.files_with_external_subs
 
         # Header
         lines.append("MediaVault Report")
@@ -67,7 +78,7 @@ class TxtReport:
                 lines.append("")
             else:
                 for m in data.movies:
-                    lines.extend(_format_movie(m))
+                    lines.extend(_format_movie(m, m.id in ext_ids))
             lines.append("")
 
         # Episodes
@@ -78,7 +89,7 @@ class TxtReport:
                 lines.append("")
             else:
                 for e in data.episodes:
-                    lines.extend(_format_episode(e))
+                    lines.extend(_format_episode(e, e.id in ext_ids))
             lines.append("")
 
         # Problems

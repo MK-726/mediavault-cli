@@ -18,22 +18,23 @@ class ReportScope(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ReportData:
-    """The fully queried and filtered data ready for rendering.
-
-    Formatters (TXT, CSV, MD) only read from this; they never touch the DB.
-    """
+    """The fully queried and filtered data ready for rendering."""
 
     scope: ReportScope
 
     movies: tuple[MediaFile, ...]
     episodes: tuple[MediaFile, ...]
 
+    # Set of media_file.id values that have ≥1 external subtitle.
+    # Used by TXT/MD formatters to render the hybrid 'subs' column.
+    files_with_external_subs: frozenset[int] = frozenset()
+
     # Problem sections (FR-1104)
-    orphan_subtitles: tuple[Path, ...]
-    movies_without_external_subs: tuple[MediaFile, ...]
-    unparsed_files: tuple[MediaFile, ...]
-    probe_error_files: tuple[MediaFile, ...]
-    missing_files: tuple[MediaFile, ...]
+    orphan_subtitles: tuple[Path, ...] = ()
+    movies_without_external_subs: tuple[MediaFile, ...] = ()
+    unparsed_files: tuple[MediaFile, ...] = ()
+    probe_error_files: tuple[MediaFile, ...] = ()
+    missing_files: tuple[MediaFile, ...] = ()
 
 
 class Report(Protocol):

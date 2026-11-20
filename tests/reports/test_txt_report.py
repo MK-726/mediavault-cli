@@ -153,9 +153,36 @@ def test_txt_report_no_problems_when_clean(data):
     assert "(No problems found)" in out
 
 
+def test_txt_subs_label_variants():
+    """Hybrid subs label: ext / emb / both / none (FR-1102/1103)."""
+    movies = [
+        _movie("/lib/a.mkv", title="A", year=2020, mf_id=1),  # none
+        _movie(
+            "/lib/b.mkv", title="B", year=2020, mf_id=2, has_embedded_subs=True
+        ),  # emb
+        _movie("/lib/c.mkv", title="C", year=2020, mf_id=3),  # ext
+        _movie(
+            "/lib/d.mkv", title="D", year=2020, mf_id=4, has_embedded_subs=True
+        ),  # both
+    ]
+    data = ReportData(
+        scope=ReportScope.MOVIES,
+        movies=tuple(movies),
+        episodes=(),
+        files_with_external_subs=frozenset({3, 4}),
+    )
+    out = TxtReport().render(data)
+    assert "A (2020)" in out and "subs: none" in out
+    assert "B (2020)" in out and "subs: emb" in out
+    assert "C (2020)" in out and "subs: ext" in out
+    assert "D (2020)" in out and "subs: both" in out
+
+
 # ---------------------------------------------------------------------------
 # Problem sections (FR-1104)
 # ---------------------------------------------------------------------------
+
+
 def test_txt_orphan_subtitles(data):
     from dataclasses import replace
 
