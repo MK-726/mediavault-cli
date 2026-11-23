@@ -7,6 +7,8 @@ command executes.
 
 from __future__ import annotations
 
+import sys
+
 import typer
 
 from mediavault import __version__
@@ -60,6 +62,13 @@ def main(
         log_dir=config.general.log_dir,
     )
     _log.debug("mediavault-cli %s starting", __version__)
+
+    # If no subcommand was invoked, launch the interactive menu (FR-200).
+    if len(sys.argv) == 1:
+        from mediavault.cli.menu import menu_loop
+
+        menu_loop(config)
+        raise typer.Exit(code=0)
 
 
 # --- Register subcommands ---
