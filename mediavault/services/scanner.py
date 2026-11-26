@@ -5,6 +5,7 @@ from __future__ import annotations
 from mediavault.config.schema import Config
 from mediavault.database.repository import Repository
 from mediavault.discovery import discover
+from mediavault.duplicates import find_exact_duplicates, find_near_duplicates
 from mediavault.logging_setup import get_logger
 from mediavault.models import (
     MediaKind,
@@ -117,6 +118,30 @@ def scan_roots(
                 if mf.show_key:
                     distinct_shows.add(mf.show_key)
 
+    # --- Duplicate detection (FR-700–FR-714) ---
+    # We need all media files for this scan (not just the newly discovered
+    # ones) to find duplicates correctly. We query the DB for all files
+    # whose last_seen_scan_id matches this scan (i.e., we just saw them).
+    file_rows = repo.conn.execute(
+        "SELECT id FROM media_files WHERE last_seen_scan_id = ?",
+        (scan.id,),
+    ).fetchall()
+    all_files_in_scan = [repo.get_media_file(row["id"]) for row in file_rows]
+
+    # Exact duplicates
+    exact_groups = find_exact_duplicates(all_files_in_scan, config)
+    for group in exact_groups:
+        # Convert DuplicateMember list to (media_file_id, hash_value) tuples.
+        members = [(m.media_file_id, m.hash_value) for m in group]
+        repo.save_duplicate_group(scan.id, "exact", members)
+
+    # Near duplicates
+    near_groups = find_near_duplicates(all_files_in_scan, exact_groups)
+    for group in near_groups:
+        # Convert NearDuplicateMember list to (media_file_id, hash_value) tuples.
+        members = [(m.media_file_id, m.hash_value) for m in group.members]
+        repo.save_duplicate_group(scan.id, "near", members)
+
     # 5. Missing-file detection (FR-806)
     # Only check files whose roots were successfully scanned (FR-322).
     if scanned_root_ids:
@@ -150,6 +175,8 @@ def scan_roots(
         movies_found=movies_found,
         shows_found=len(distinct_shows),
         episodes_found=episodes_found,
+        exact_duplicates_found=len(exact_groups),
+        near_duplicates_found=len(near_groups),
         filesystem_errors=filesystem_errors,
     )
 

@@ -77,6 +77,8 @@ class Repository:
         movies_found: int = 0,
         shows_found: int = 0,
         episodes_found: int = 0,
+        exact_duplicates_found: int = 0,
+        near_duplicates_found: int = 0,
         filesystem_errors: int = 0,
         probe_errors: int = 0,
         hash_errors: int = 0,
@@ -90,6 +92,8 @@ class Repository:
                 movies_found = ?,
                 shows_found = ?,
                 episodes_found = ?,
+                exact_duplicates_found = ?,
+                near_duplicates_found = ?,
                 filesystem_errors = ?,
                 probe_errors = ?,
                 hash_errors = ?,
@@ -101,6 +105,8 @@ class Repository:
                 movies_found,
                 shows_found,
                 episodes_found,
+                exact_duplicates_found,
+                near_duplicates_found,
                 filesystem_errors,
                 probe_errors,
                 hash_errors,
@@ -327,3 +333,30 @@ class Repository:
             (media_file_id,),
         )
         self.conn.commit()
+
+    def save_duplicate_group(
+        self,
+        scan_id: int,
+        kind: str,  # "exact" or "near"
+        members: list[tuple[int, str | None]],
+    ) -> int:
+        """Persist a duplicate group and its members.
+
+        *members* is a list of (media_file_id, hash_value) tuples.
+        Returns the new group_id.
+        """
+        cur = self.conn.execute(
+            "INSERT INTO duplicate_groups (scan_id, kind) VALUES (?, ?)",
+            (scan_id, kind),
+        )
+        group_id = cur.lastrowid
+        assert group_id is not None
+
+        for media_file_id, hash_value in members:
+            self.conn.execute(
+                "INSERT INTO duplicate_members "
+                "(group_id, media_file_id, hash_value) VALUES (?, ?, ?)",
+                (group_id, media_file_id, hash_value),
+            )
+        self.conn.commit()
+        return group_id
