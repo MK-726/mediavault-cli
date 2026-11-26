@@ -313,10 +313,44 @@ def _option_search(repo: Repository) -> None:
 # Option 5: Duplicates
 # ---------------------------------------------------------------------------
 def _option_duplicates(repo: Repository) -> None:
-    console.print(
-        "[yellow]Duplicate scanning is not yet fully wired into the menu.[/yellow]"
-    )
-    console.print("Use the `scan` command; duplicates are detected during scan.")
+    """Show exact and near duplicates from the most recent successful scan."""
+
+    # Find latest successful scan
+    row = repo.conn.execute(
+        "SELECT id FROM scans WHERE status IN ('completed', 'partial') "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        console.print("[yellow]No successful scan found. Run a scan first.[/yellow]")
+        return
+
+    scan_id = row["id"]
+    groups = repo.conn.execute(
+        "SELECT id, kind FROM duplicate_groups WHERE scan_id = ? ORDER BY kind, id",
+        (scan_id,),
+    ).fetchall()
+
+    if not groups:
+        console.print("[green]No duplicates found.[/green]")
+        return
+
+    for g in groups:
+        gid = g["id"]
+        kind = g["kind"]
+        members = repo.conn.execute(
+            "SELECT m.path FROM duplicate_members dm "
+            "JOIN media_files m ON dm.media_file_id = m.id "
+            "WHERE dm.group_id = ?",
+            (gid,),
+        ).fetchall()
+
+        title = f"{kind.title()} Duplicates (Group {gid}, {len(members)} files)"
+        table = Table(title=title)
+        table.add_column("Path")
+        for m in members:
+            table.add_row(str(m["path"]))
+        console.print(table)
+        console.print("")
 
 
 # ---------------------------------------------------------------------------
