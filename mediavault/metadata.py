@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+from datetime import datetime, timezone
 
 from mediavault.config.schema import Config
 from mediavault.logging_setup import get_logger
@@ -60,6 +61,7 @@ def extract_metadata(media_file: MediaFile, config: Config) -> MediaFile:
             "metadata: ffprobe execution failed for %s: %s", media_file.path, exc
         )
         _handle_failure(media_file, "execution_error")
+        media_file.probed_at = datetime.now(timezone.utc).isoformat()
         return media_file
 
     if result.returncode != 0:

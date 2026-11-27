@@ -71,7 +71,7 @@ def build_report_data(
     # Probe errors are files that exist but have no codec and weren't probed.
     # (This is a heuristic; a more precise way would be to track failed probes.)
     probe_errors = tuple(
-        f for f in all_files if f.codec is None and f.missing_since_scan_id is None
+        f for f in all_files if f.probed_at is None and f.missing_since_scan_id is None
     )
 
     # Movies missing external subs (only relevant for movies scope)
