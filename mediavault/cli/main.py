@@ -1,13 +1,6 @@
-"""Typer application entry point (FR-200–FR-209).
-
-Phase 1 scope: --version and --help only. Subcommands are added in later
-phases (§11). The app callback runs logging setup once, before any
-command executes.
-"""
+"""Typer application entry point (FR-200–FR-209)."""
 
 from __future__ import annotations
-
-import sys
 
 import typer
 
@@ -18,6 +11,7 @@ from mediavault.cli.commands import config_cmd
 from mediavault.cli.commands import export as cmd_export
 from mediavault.cli.commands import scan as cmd_scan
 from mediavault.cli.commands import search as cmd_search
+from mediavault.cli.menu import menu_loop
 from mediavault.config import load_config
 from mediavault.errors import ConfigurationError
 from mediavault.logging_setup import configure_logging, get_logger
@@ -25,7 +19,6 @@ from mediavault.logging_setup import configure_logging, get_logger
 app = typer.Typer(
     name="mediavault-cli",
     help="Scan, catalogue, and analyze a local movie/show library.",
-    # bare invocation will later open the menu (FR-200)
     no_args_is_help=False,
     add_completion=False,
 )
@@ -39,8 +32,9 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit(code=0)
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         False,
         "--version",
@@ -63,10 +57,8 @@ def main(
     )
     _log.debug("mediavault-cli %s starting", __version__)
 
-    # If no subcommand was invoked, launch the interactive menu (FR-200).
-    if len(sys.argv) == 1:
-        from mediavault.cli.menu import menu_loop
-
+    # FR-200: bare invocation launches the interactive menu.
+    if ctx.invoked_subcommand is None:
         menu_loop(config)
         raise typer.Exit(code=0)
 
