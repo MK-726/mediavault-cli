@@ -255,6 +255,8 @@ class Repository:
         self.conn.execute(
             """
             UPDATE media_files SET
+                size = ?,
+                mtime_ns = ?,
                 last_seen_scan_id = ?,
                 missing_since_scan_id = ?,
                 parsed_title = ?, parsed_year = ?,
@@ -262,11 +264,14 @@ class Repository:
                 show_key = ?, season = ?, episode = ?, near_dup_key = ?,
                 codec = ?, width = ?, height = ?, duration = ?, bit_rate = ?,
                 audio_codec = ?, audio_channels = ?, audio_streams_json = ?,
-                has_embedded_subs = ?, embedded_sub_count = ?, embedded_sub_langs = ?,
+                has_embedded_subs = ?, embedded_sub_count = ?,
+                embedded_sub_langs = ?,
                 probed_at = ?, ffprobe_version = ?
             WHERE id = ?
             """,
             (
+                mf.size,
+                mf.mtime_ns,
                 mf.last_seen_scan_id,
                 mf.missing_since_scan_id,
                 mf.parsed_title,
