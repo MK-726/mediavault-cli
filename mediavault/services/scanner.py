@@ -7,6 +7,7 @@ from mediavault.database.repository import Repository
 from mediavault.discovery import discover
 from mediavault.duplicates import find_exact_duplicates, find_near_duplicates
 from mediavault.logging_setup import get_logger
+from mediavault.metadata import check_ffprobe_available, extract_metadata
 from mediavault.models import (
     MediaKind,
     ScanRoot,
@@ -54,6 +55,18 @@ def scan_roots(
     # Track roots that were successfully scanned (mounted) for FR-322.
     scanned_root_ids: set[int] = set()
 
+    scan = repo.start_scan()
+    assert scan.id is not None
+    _log.info("scanner: started scan %d across %d root(s)", scan.id, len(roots))
+
+    ffprobe_available = check_ffprobe_available(config)
+    if not ffprobe_available:
+        _log.warning(
+            "scanner: ffprobe not found at %r; scan will be partial (FR-507)",
+            config.general.ffprobe_path,
+        )
+    probe_errors = 0
+
     for root in roots:
         if root.id is None:
             raise ValueError("ScanRoot must have an ID before scanning")
@@ -82,6 +95,20 @@ def scan_roots(
 
         # 3. Parsing (returns new MediaFile objects; originals untouched)
         parsed_files = apply_parsing(discovery_result.media_files, root=root.path)
+
+        # FR-500–FR-507: FFprobe each file (unless ffprobe is unavailable).
+        if ffprobe_available:
+            for mf in parsed_files:
+                try:
+                    extract_metadata(mf, config)
+                except Exception as exc:
+                    _log.warning("scanner: probe failed for %s: %s", mf.path, exc)
+                    probe_errors += 1
+                    # extract_metadata already sets all fields to None on
+                    # known failure modes; the exception path is for
+                    # unexpected ones. Leave fields as-is (they'll be None).
+        else:
+            probe_errors += len(parsed_files)
 
         # 4. Persistence
         for mf in parsed_files:
@@ -168,7 +195,12 @@ def scan_roots(
                     _log.debug("scanner: marked missing: %s", row["path"])
 
     # 6. Finalize the scan
-    status = ScanStatus.PARTIAL if filesystem_errors > 0 else ScanStatus.COMPLETED
+    status = (
+        ScanStatus.PARTIAL
+        if (filesystem_errors > 0 or (not ffprobe_available) or probe_errors > 0)
+        else ScanStatus.COMPLETED
+    )
+
     finished_scan = repo.finish_scan(
         scan.id,
         status=status,
@@ -178,6 +210,7 @@ def scan_roots(
         exact_duplicates_found=len(exact_groups),
         near_duplicates_found=len(near_groups),
         filesystem_errors=filesystem_errors,
+        probe_errors=probe_errors,
     )
 
     # FR-103/FR-809: Record the last successful scan ID.
